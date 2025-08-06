@@ -23,7 +23,7 @@ use windows::{
     core::PCSTR,
 };
 
-const DVC_NAME_DEFAULT: &str = "ECHO";
+const DVC_NAME_DEFAULT: &str = "ECHOCHN";
 
 const HELP_MSG: &str = r#"
 Usage:
@@ -64,7 +64,7 @@ fn main() {
     let ch_handle = match unsafe {
         WTSVirtualChannelOpenEx(
             WTS_CURRENT_SESSION,
-            PCSTR::from_raw(channel_name.as_ptr()),
+            PCSTR(format!("{channel_name}\0").as_ptr()),
             WTS_CHANNEL_OPTION_DYNAMIC,
         )
     } {
