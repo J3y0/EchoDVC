@@ -5,7 +5,7 @@ mod registry;
 
 use class_factory::EchoDVCClassFactory;
 use echo_plugin::CLSID_ECHODVC_PLUGIN;
-use log::{debug, error};
+use log::{debug, error, info};
 use registry::{com_register, com_unregister, rdp_register, rdp_unregister};
 use windows::{self as ws, Win32::System::Com::IClassFactory};
 use windows_core::Interface;
@@ -18,6 +18,7 @@ pub extern "system" fn DllGetClassObject(
     ppv: ws::core::OutRef<IClassFactory>,
 ) -> ws::core::HRESULT {
     let _ = crate::logs::init_logs(log::LevelFilter::Debug, "plugin.log");
+    info!("CALLED DllGetClassObject");
 
     let clsid = match rclsid.ok() {
         Ok(id) => *id,
@@ -39,7 +40,7 @@ pub extern "system" fn DllGetClassObject(
     debug!("iid: {iid:?}");
 
     if iid != IClassFactory::IID {
-        error!("invalid clsid: {iid:?}");
+        error!("invalid iid: {iid:?}");
         return ws::Win32::Foundation::CLASS_E_CLASSNOTAVAILABLE;
     }
 

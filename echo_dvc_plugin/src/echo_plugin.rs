@@ -11,7 +11,7 @@ use windows::{
 };
 
 pub const CLSID_ECHODVC_PLUGIN: GUID = GUID::from_u128(0xF5234ABFAC884D6EAA8D490DF08F194D);
-const DVC_NAME: &str = "TSTCHN";
+const DVC_NAME: &str = "ECHOCHN";
 
 #[implement(IWTSPlugin, IWTSListenerCallback)]
 pub struct EchoDvcPlugin();
