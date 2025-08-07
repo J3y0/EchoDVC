@@ -30,7 +30,7 @@ pub fn rdp_unregister() -> Result<(), String> {
     let addins = hkcu
         .open_subkey_with_flags(RDP_ADDINS_PATH, winreg::enums::KEY_ALL_ACCESS)
         .map_err(|err| format!("failed to open rdp addins path: {err}"))?;
-    let _ = addins
+    addins
         .delete_subkey_all(PLUGIN_NAME)
         .map_err(|err| format!("failed to delete plugin entry: {err}"))?;
 

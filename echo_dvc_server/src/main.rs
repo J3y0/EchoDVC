@@ -65,7 +65,7 @@ fn main() {
 
     let channel_name = opts.name;
 
-    println!("opening channel: {}", channel_name);
+    println!("opening channel: {channel_name}");
 
     let ch_handle = match unsafe {
         WTSVirtualChannelOpenEx(
@@ -176,10 +176,7 @@ fn run(
         let _ = io::stdin().read_line(&mut input).unwrap();
         let line = input.trim();
 
-        let (command, arg) = line
-            .split_once(' ')
-            .map(|(command, arg)| (command, arg))
-            .unwrap_or((line, ""));
+        let (command, arg) = line.split_once(' ').unwrap_or((line, ""));
 
         let command = command.to_uppercase();
 
@@ -191,13 +188,12 @@ fn run(
             "QUIT" | "EXIT" => break,
             "WRITE" | "PUT" => {
                 // Send
-                let _ =
-                    write_dvc(filehandle, arg.as_bytes(), &write_overlapped).map_err(|err| {
-                        ws::core::Error::new(
-                            err.code(),
-                            format!("error writting to channel: {}", err.message()),
-                        )
-                    })?;
+                write_dvc(filehandle, arg.as_bytes(), &write_overlapped).map_err(|err| {
+                    ws::core::Error::new(
+                        err.code(),
+                        format!("error writting to channel: {}", err.message()),
+                    )
+                })?;
 
                 // Receive
                 let mut rbuf: [u8; PACKET_MAX_LENGTH] = [0; PACKET_MAX_LENGTH];

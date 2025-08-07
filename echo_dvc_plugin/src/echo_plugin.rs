@@ -22,7 +22,7 @@ impl IWTSPlugin_Impl for EchoDvcPlugin_Impl {
         p_channel_manager: ws::core::Ref<IWTSVirtualChannelManager>,
     ) -> Result<(), ws::core::Error> {
         info!("CALLED initialized");
-        debug!("DVC name is {:?}", DVC_NAME);
+        debug!("DVC name is {DVC_NAME:?}");
 
         match p_channel_manager.as_ref() {
             None => {
@@ -56,7 +56,7 @@ impl IWTSPlugin_Impl for EchoDvcPlugin_Impl {
     }
 
     fn Disconnected(&self, disconnect_code: u32) -> Result<(), ws::core::Error> {
-        info!("client disconnected with: {}", disconnect_code);
+        info!("client disconnected with: {disconnect_code}");
         Ok(())
     }
 
@@ -122,7 +122,7 @@ impl IWTSVirtualChannelCallback_Impl for EchoDvcChannelCallback_Impl {
         );
 
         let to_send = received_buffer;
-        let _ = unsafe { self.channel.resolve().unwrap().Write(to_send, None) }
+        unsafe { self.channel.resolve().unwrap().Write(to_send, None) }
             .inspect_err(|err| error!("failed to write to channel: {err}"))?;
 
         debug!("sent: {} ({:?})", String::from_utf8_lossy(to_send), to_send);
