@@ -196,20 +196,14 @@ fn run(
                 })?;
 
                 // Receive
-                let mut rbuf: [u8; PACKET_MAX_LENGTH] = [0; PACKET_MAX_LENGTH];
-                let data_range =
-                    read_dvc(filehandle, &mut rbuf, &read_overlapped).map_err(|err| {
-                        ws::core::Error::new(
-                            err.code(),
-                            format!("error reading from channel: {}", err.message()),
-                        )
-                    })?;
+                let read = read_dvc(filehandle, &read_overlapped).map_err(|err| {
+                    ws::core::Error::new(
+                        err.code(),
+                        format!("error reading from channel: {}", err.message()),
+                    )
+                })?;
 
-                println!(
-                    "received: {} ({:?})",
-                    String::from_utf8_lossy(&rbuf[data_range.clone()]),
-                    &rbuf[data_range]
-                );
+                println!("received: {} ({:?})", read, read.as_bytes());
             }
             _ => println!("invalid command"),
         }
