@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "echo_dvc_plugin"
-version = "0.1.0"
+version = "1.1.0"
 dependencies = [
  "log",
  "simplelog",
