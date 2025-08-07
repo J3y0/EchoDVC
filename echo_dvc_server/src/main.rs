@@ -1,12 +1,14 @@
+mod io_dvc;
+
 use std::{
     cell,
-    fmt::Display,
     io::{self, Write},
     process::exit,
     ptr,
 };
 
 use clap::Parser;
+use io_dvc::{read_dvc, write_dvc};
 
 use log::{debug, error};
 use simplelog::Config;
@@ -15,14 +17,15 @@ use windows::{
     Win32::System::{
         IO::OVERLAPPED,
         RemoteDesktop::{
-            CHANNEL_CHUNK_LENGTH, CHANNEL_FLAG_FIRST, CHANNEL_FLAG_LAST,
-            WTS_CHANNEL_OPTION_DYNAMIC, WTS_CURRENT_SESSION, WTSVirtualChannelOpenEx,
-            WTSVirtualChannelQuery,
+            CHANNEL_CHUNK_LENGTH, WTS_CHANNEL_OPTION_DYNAMIC, WTS_CURRENT_SESSION,
+            WTSVirtualChannelOpenEx, WTSVirtualChannelQuery,
         },
     },
     core::PCSTR,
 };
 
+const PDU_HEADER_LENGTH: usize = 0x8;
+const PACKET_MAX_LENGTH: usize = CHANNEL_CHUNK_LENGTH as usize + PDU_HEADER_LENGTH;
 const DVC_NAME_DEFAULT: &str = "ECHOCHN";
 
 const HELP_MSG: &str = r#"
@@ -41,10 +44,8 @@ struct Cli {
     name: String,
 }
 
-fn main() {
-    let opts = Cli::parse();
-
-    let level = if opts.verbose {
+fn init_logs(verbose: bool) {
+    let level = if verbose {
         log::LevelFilter::Debug
     } else {
         log::LevelFilter::Error
@@ -56,6 +57,11 @@ fn main() {
         simplelog::TerminalMode::Mixed,
         simplelog::ColorChoice::Auto,
     );
+}
+
+fn main() {
+    let opts = Cli::parse();
+    init_logs(opts.verbose);
 
     let channel_name = opts.name;
 
@@ -147,6 +153,20 @@ fn main() {
     let read_overlapped = cell::RefCell::new(read_overlapped);
     let write_overlapped = cell::RefCell::new(write_overlapped);
 
+    match run(filehandle, read_overlapped, write_overlapped) {
+        Ok(_) => {}
+        Err(e) => {
+            error!("error: {e}");
+            exit(1);
+        }
+    }
+}
+
+fn run(
+    filehandle: ws::Win32::Foundation::HANDLE,
+    read_overlapped: cell::RefCell<OVERLAPPED>,
+    write_overlapped: cell::RefCell<OVERLAPPED>,
+) -> ws::core::Result<()> {
     println!("{HELP_MSG}");
     let mut input = String::new();
     loop {
@@ -170,20 +190,24 @@ fn main() {
             "" => (),
             "QUIT" | "EXIT" => break,
             "WRITE" | "PUT" => {
+                // Send
                 let _ =
-                    write_dvc(filehandle, arg.as_bytes(), &write_overlapped).inspect_err(|err| {
-                        error!("error writting to channel: {err}");
-                        exit(1)
-                    });
-                let mut rbuf: [u8; CHANNEL_CHUNK_LENGTH as usize] =
-                    [0; CHANNEL_CHUNK_LENGTH as usize];
-                let data_range = match read_dvc(filehandle, &mut rbuf, &read_overlapped) {
-                    Ok(r) => r,
-                    Err(err) => {
-                        error!("error reading from channel: {err}");
-                        exit(1)
-                    }
-                };
+                    write_dvc(filehandle, arg.as_bytes(), &write_overlapped).map_err(|err| {
+                        ws::core::Error::new(
+                            err.code(),
+                            format!("error writting to channel: {}", err.message()),
+                        )
+                    })?;
+
+                // Receive
+                let mut rbuf: [u8; PACKET_MAX_LENGTH] = [0; PACKET_MAX_LENGTH];
+                let data_range =
+                    read_dvc(filehandle, &mut rbuf, &read_overlapped).map_err(|err| {
+                        ws::core::Error::new(
+                            err.code(),
+                            format!("error reading from channel: {}", err.message()),
+                        )
+                    })?;
 
                 println!(
                     "received: {} ({:?})",
@@ -196,131 +220,6 @@ fn main() {
 
         input.clear();
     }
-}
 
-fn write_dvc(
-    filehandle: ws::Win32::Foundation::HANDLE,
-    data: &[u8],
-    ref_overlapped: &cell::RefCell<OVERLAPPED>,
-) -> ws::core::Result<()> {
-    let mut written = 0;
-
-    let mut overlapped = ref_overlapped.borrow_mut();
-
-    debug!("WriteFile");
-    let ret = unsafe {
-        ws::Win32::Storage::FileSystem::WriteFile(
-            filehandle,
-            Some(data),
-            Some(&raw mut written),
-            Some(&raw mut *overlapped),
-        )
-    };
-
-    let mut real_written = written;
-    if let Err(err) = ret {
-        if err.code() == ws::Win32::Foundation::ERROR_IO_PENDING.to_hresult() {
-            let mut written = 0;
-            let ret = unsafe {
-                ws::Win32::System::IO::GetOverlappedResult(
-                    filehandle,
-                    &raw const *overlapped,
-                    &raw mut written,
-                    true,
-                )
-            };
-
-            real_written = match ret {
-                Ok(_) => written,
-                Err(err) => return Err(err),
-            };
-        }
-    }
-
-    let data_str = String::from_utf8_lossy(data);
-
-    debug!("written: {real_written} bytes");
-    debug!("sent: {data_str} ({data:?})");
     Ok(())
-}
-
-struct ReadError(String);
-
-impl From<ws::core::Error> for ReadError {
-    fn from(value: ws::core::Error) -> Self {
-        Self(format!("{value}"))
-    }
-}
-
-impl Display for ReadError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-fn read_dvc(
-    filehandle: ws::Win32::Foundation::HANDLE,
-    data: &mut [u8],
-    ref_overlapped: &cell::RefCell<OVERLAPPED>,
-) -> Result<std::ops::Range<usize>, ReadError> {
-    let mut read = 0;
-    let mut overlapped = ref_overlapped.borrow_mut();
-
-    debug!("ReadFile");
-    let ret = unsafe {
-        ws::Win32::Storage::FileSystem::ReadFile(
-            filehandle,
-            Some(data),
-            Some(&raw mut read),
-            Some(&raw mut *overlapped),
-        )
-    };
-
-    let mut real_read = read;
-    if let Err(err) = ret {
-        if err.code() == ws::Win32::Foundation::ERROR_IO_PENDING.to_hresult() {
-            let mut read = 0;
-            let ret = unsafe {
-                ws::Win32::System::IO::GetOverlappedResult(
-                    filehandle,
-                    &raw const *overlapped,
-                    &raw mut read,
-                    true,
-                )
-            };
-
-            real_read = match ret {
-                Ok(_) => read,
-                Err(err) => return Err(ReadError::from(err)),
-            };
-        }
-    }
-
-    if real_read < 8 {
-        return Err(ReadError(format!(
-            "not a PDU header (length = {real_read}): {data:?}"
-        )));
-    }
-
-    let mut pdu_length = [0u8; 4];
-    pdu_length.copy_from_slice(&data[..4]);
-    let pdu_length = u32::from_le_bytes(pdu_length);
-
-    let mut pdu_flags = [0u8; 4];
-    pdu_flags.copy_from_slice(&data[4..8]);
-    let pdu_flags = u32::from_le_bytes(pdu_flags);
-
-    if pdu_flags & (CHANNEL_FLAG_FIRST | CHANNEL_FLAG_LAST)
-        != CHANNEL_FLAG_FIRST | CHANNEL_FLAG_LAST
-    {
-        return Err(ReadError(format!("unsupported PDU flags: 0x{pdu_flags:x}")));
-    }
-
-    if pdu_length != real_read - 8 {
-        return Err(ReadError(format!(
-            "inconsistent length: pdu_length = {pdu_length} - read = {real_read}"
-        )));
-    }
-
-    Ok(8..real_read as usize)
 }
