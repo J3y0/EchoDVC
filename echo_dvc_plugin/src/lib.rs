@@ -17,7 +17,8 @@ pub extern "system" fn DllGetClassObject(
     riid: *const ws::core::GUID,
     ppv: ws::core::OutRef<IClassFactory>,
 ) -> ws::core::HRESULT {
-    crate::logs::init_logs(log::LevelFilter::Debug, "plugin.log");
+    crate::logs::init_logs(log::LevelFilter::Debug);
+
     info!("CALLED DllGetClassObject");
 
     let clsid = unsafe { *rclsid };
