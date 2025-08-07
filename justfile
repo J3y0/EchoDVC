@@ -1,21 +1,37 @@
-# Build client and server
-build: server client
+# Build all
+all: debug release
 
-# Build server
+# Build client and server in debug mode
+debug: server-debug client-debug
+
+# Build client and server in release mode
+release: server-release client-release
+
+# Build server in debug mode
 [working-directory: "echo_dvc_server"]
-server:
-    @echo "Building server"
+server-debug:
+    @echo "Building server in debug mode"
     cargo build --target x86_64-pc-windows-gnu
-    cp ./target/x86_64-pc-windows-gnu/debug/echo_dvc_server.exe ~/Documents/vm/shared/echo_dvc_server.exe
 
-# Build client
+# Build client in debug mode
 [working-directory: "echo_dvc_plugin"]
-client:
-    @echo "Building client"
+client-debug:
+    @echo "Building client in debug mode"
     cargo build --target i686-pc-windows-gnu
     cargo build --target x86_64-pc-windows-gnu
-    cp ./target/i686-pc-windows-gnu/debug/echo_dvc_plugin.dll ~/Documents/vm/shared/echo_dvc_plugin_32.dll
-    cp ./target/x86_64-pc-windows-gnu/debug/echo_dvc_plugin.dll ~/Documents/vm/shared/echo_dvc_plugin.dll
+
+# Build server in release mode
+[working-directory: "echo_dvc_server"]
+server-release:
+    @echo "Building server in release mode"
+    cargo build --target x86_64-pc-windows-gnu --release
+
+# Build client in release mode
+[working-directory: "echo_dvc_plugin"]
+client-release:
+    @echo "Building client in release mode"
+    cargo build --target i686-pc-windows-gnu --release
+    cargo build --target x86_64-pc-windows-gnu --release
 
 # Clean projects
 clean: (_clean-path "echo_dvc_plugin") (_clean-path "echo_dvc_server")
