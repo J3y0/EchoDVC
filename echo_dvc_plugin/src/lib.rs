@@ -13,34 +13,22 @@ use windows_core::Interface;
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]
 pub extern "system" fn DllGetClassObject(
-    rclsid: ws::core::Ref<ws::core::GUID>,
-    riid: ws::core::Ref<ws::core::GUID>,
+    rclsid: *const ws::core::GUID,
+    riid: *const ws::core::GUID,
     ppv: ws::core::OutRef<IClassFactory>,
 ) -> ws::core::HRESULT {
     let _ = crate::logs::init_logs(log::LevelFilter::Debug, "plugin.log");
     info!("CALLED DllGetClassObject");
 
-    let clsid = match rclsid.ok() {
-        Ok(id) => *id,
-        Err(e) => {
-            error!("failed to get rclsid: {}", e);
-            return ws::Win32::Foundation::E_INVALIDARG;
-        }
-    };
-
-    let iid = match riid.ok() {
-        Ok(id) => *id,
-        Err(e) => {
-            error!("failed to get riid: {}", e);
-            return ws::Win32::Foundation::E_INVALIDARG;
-        }
-    };
+    let clsid = unsafe { *rclsid };
+    let iid = unsafe { *riid };
 
     debug!("clsid: {clsid:?}");
     debug!("iid: {iid:?}");
 
     if iid != IClassFactory::IID {
         error!("invalid iid: {iid:?}");
+        let _ = ppv.write(None);
         return ws::Win32::Foundation::CLASS_E_CLASSNOTAVAILABLE;
     }
 
@@ -48,6 +36,7 @@ pub extern "system" fn DllGetClassObject(
 
     if clsid != CLSID_ECHODVC_PLUGIN {
         error!("invalid clsid: {clsid:?}");
+        let _ = ppv.write(None);
         ws::Win32::Foundation::CLASS_E_CLASSNOTAVAILABLE
     } else {
         let _ = ppv.write(Some(factory.into()));

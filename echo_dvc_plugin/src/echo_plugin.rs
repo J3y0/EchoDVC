@@ -122,7 +122,10 @@ impl IWTSVirtualChannelCallback_Impl for EchoDvcChannelCallback_Impl {
         );
 
         let to_send = received_buffer;
-        let _ = unsafe { self.channel.resolve().unwrap().Write(to_send, None) };
+        let _ = unsafe { self.channel.resolve().unwrap().Write(to_send, None) }
+            .inspect_err(|err| error!("failed to write to channel: {err}"))?;
+
+        debug!("sent: {} ({:?})", String::from_utf8_lossy(to_send), to_send);
 
         Ok(())
     }
